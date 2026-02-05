@@ -1,0 +1,71 @@
+version: '3.8'
+
+networks:
+  currency-network:
+
+services:
+  currency-exch:
+    image: souma2954/mcv1-currency-exch:v1
+    mem_limit: 700m
+    ports:
+      - "9000:9000"
+    networks:
+      - currency-network
+    depends_on:
+      - eureka-server
+    environment:
+      EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      
+  eureka-server:
+    image: souma2954/eureka-server:v1
+    mem_limit: 500m
+    ports:
+      - "8761:8761"
+    networks:
+      - "currency-network"
+
+  config-server:
+    image: souma2954/mcv1-config-server:v1
+    mem_limit: 500m
+    ports: 
+      - "8888:8888"
+    depends_on: 
+      - eureka-server
+    networks:
+      - "currency-network"	  
+    environment:
+      EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE: http://eureka-server:8761/eureka
+
+  currency-conv:
+    image: souma2954/mcv1-currency-conv:v1
+    mem_limit: 700m
+    ports: 
+      - "8000:8000"
+    depends_on: 
+      - config-server
+    networks:
+      - "currency-network"	  
+    environment:
+      SPRING_APPLICATION_NAME: currency-conv		
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8888
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_CLOUD_CONFIG_DISCOVERY_ENABLED: false
+      SPRING_CLOUD_CONFIG_FAIL_FAST: "false"
+      SPRING_CLOUD_CONFIG_RETRY_MAX_ATTEMPTS: "20"
+      SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: "3000"
+      SPRING_CLOUD_CONFIG_RETRY_MAX_INTERVAL: "10000"	  
+      SPRING_CLOUD_CONFIG_RETRY_MULTIPLIER: "1.5"
+
+  api-gateway:
+    image: souma2954/mcv1-api-gateway:v1
+    mem_limit: 700m
+    ports: 
+      - "8765:8765"
+    depends_on: 
+      - currency-conv
+      - currency-exch
+    networks:
+      - "currency-network"	  
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
