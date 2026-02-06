@@ -4,8 +4,15 @@ networks:
   currency-network:
 
 services:
+  zipkin:
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - currency-network
+
   currency-exch:
-    image: souma2954/mcv1-currency-exch:v1
+    image: souma2954/mcv1-currency-exch:v2
     mem_limit: 700m
     ports:
       - "9000:9000"
@@ -14,10 +21,11 @@ services:
     depends_on:
       - eureka-server
     environment:
-      EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
       
   eureka-server:
-    image: souma2954/eureka-server:v1
+    image: souma2954/eureka-server:v2
     mem_limit: 500m
     ports:
       - "8761:8761"
@@ -25,7 +33,7 @@ services:
       - "currency-network"
 
   config-server:
-    image: souma2954/mcv1-config-server:v1
+    image: souma2954/mcv1-config-server:v2
     mem_limit: 500m
     ports: 
       - "8888:8888"
@@ -34,17 +42,17 @@ services:
     networks:
       - "currency-network"	  
     environment:
-      EUREKA_CLIENT_SERVICE-URL_DEFAULTZONE: http://eureka-server:8761/eureka
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
 
   currency-conv:
-    image: souma2954/mcv1-currency-conv:v1
+    image: souma2954/mcv1-currency-conv:v2
     mem_limit: 700m
     ports: 
       - "8000:8000"
     depends_on: 
       - config-server
     networks:
-      - "currency-network"	  
+      - "currency-network"
     environment:
       SPRING_APPLICATION_NAME: currency-conv		
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
@@ -56,9 +64,11 @@ services:
       SPRING_CLOUD_CONFIG_RETRY_INITIAL_INTERVAL: "3000"
       SPRING_CLOUD_CONFIG_RETRY_MAX_INTERVAL: "10000"	  
       SPRING_CLOUD_CONFIG_RETRY_MULTIPLIER: "1.5"
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092  
 
   api-gateway:
-    image: souma2954/mcv1-api-gateway:v1
+    image: souma2954/mcv1-api-gateway:v2
     mem_limit: 700m
     ports: 
       - "8765:8765"
@@ -69,3 +79,38 @@ services:
       - "currency-network"	  
     environment:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - "currency-network"		  
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    networks:
+      - "currency-network"	
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Kafka listens inside container
+      KAFKA_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://:29092
+      # What Kafka tells clients to connect to:
+      # - Inside Docker network → kafka:9092
+      # - Outside (host machine) → localhost:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
