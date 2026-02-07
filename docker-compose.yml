@@ -12,7 +12,7 @@ services:
       - currency-network
 
   currency-exch:
-    image: souma2954/mcv1-currency-exch:v2
+    image: souma2954/mcv1-currency-exch:v1
     mem_limit: 700m
     ports:
       - "9000:9000"
@@ -25,7 +25,7 @@ services:
       MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
       
   eureka-server:
-    image: souma2954/eureka-server:v2
+    image: souma2954/eureka-server:v1
     mem_limit: 500m
     ports:
       - "8761:8761"
@@ -33,7 +33,7 @@ services:
       - "currency-network"
 
   config-server:
-    image: souma2954/mcv1-config-server:v2
+    image: souma2954/mcv1-config-server:v1
     mem_limit: 500m
     ports: 
       - "8888:8888"
